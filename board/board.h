@@ -6,8 +6,8 @@
 #define BOARD_LED_GPIO       GPIOC
 #define BOARD_LED_GPIO_CLOCK RCC_APB2Periph_GPIOC
 #define BOARD_LED_PIN        GPIO_Pin_13
-#define BOARD_LED_ON_STATE   Bit_RESET
-#define BOARD_LED_OFF_STATE  Bit_SET
+#define BOARD_LED_ON_STATE   Bit_SET
+#define BOARD_LED_OFF_STATE  Bit_RESET
 
 void board_init(void);
 void board_led_init(void);

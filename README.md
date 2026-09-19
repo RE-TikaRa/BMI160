@@ -17,7 +17,7 @@
 | 加速度计 | 100 Hz，Normal 带宽，±2 g |
 | 陀螺仪 | 100 Hz，Normal 带宽，±500 °/s |
 | 调试串口 | USART1，PA9 / PA10，115200-8-N-1 |
-| 状态指示 | PC13，校准期间闪烁，完成后常亮，低电平点亮 |
+| 状态指示 | PC13，校准期间闪烁，完成后常亮，高电平点亮 |
 | 工具链 | Keil MDK V5，ARM Compiler 5.06 update 7 |
 
 BMI160 支持 0x68 与 0x69 两个 7 位 I2C 地址。SDO 接 GND 时使用 0x68，接 VDDIO 时使用 0x69。若改为 0x69，将 `main.c` 中的 `BMI160_I2C_ADDRESS_LOW` 改为 `BMI160_I2C_ADDRESS_HIGH`。
@@ -49,14 +49,17 @@ SCL 与 SDA 必须有外部上拉电阻。多数 BMI160 模块已经带上拉，
 
 ```text
 BMI160 ready, chip ID: 0xD1
-BMI160 calibration: keep still on a flat face
-BMI160 gravity axis: Z+
-BMI160 calibrated: A 0 0 0, G 0 0 0
+BMI160 calibration: waiting for stillness
+BMI160 calibration: sampling
+BMI160 startup frame: A[mg] 773 -550 225
+BMI160 gyro bias[mdps]: -61 122 -244
 ```
 
-开机时将模块任意一面平放并保持静止，不需要辨认 X、Y、Z。程序对 50 组加速度数据取平均，自动判断重力所在的 ±X、±Y 或 ±Z，再生成 FOC 目标。PC13 在采样和 FOC 轮询期间闪烁，校准完成后保持点亮。
+开机时不限制模块放置方向。程序先等待连续 0.5 秒稳定数据，再对后续 50 组六轴数据取平均。稳定条件为三轴角速度分别小于 5000 mdps，且相邻采样的三轴加速度变化分别小于 25 mg；等待上限为 10 秒。
 
-若主轴不接近 1 g，或另外两轴任一超过 400 mg，程序不会写入偏移，并输出 `BMI160 calibration pose invalid`。调整为平放静止后重新上电即可。
+平均重力方向用于建立新的 Z 轴，BMI160 原生 X 轴投影到水平面后建立新的 X 轴，再由叉乘得到 Y 轴。三轴平均角速度保存为软件偏置，后续每次读取时先逐轴扣除，再旋转到启动坐标系。
+
+重力模长需处于 750-1250 mg，平均三轴角速度需分别小于 5000 mdps。稳定等待超时或最终平均值异常时，程序输出对应错误并保持错误闪烁。平均阶段允许单个加速度采样出现短暂波动。PC13 在等待稳定和取样期间闪烁，校准完成后保持点亮。
 
 随后每 100 ms 输出一行：
 
@@ -68,8 +71,8 @@ A[mg] 12 -8 1001  G[mdps] 61 -122 244  T[mC] 25125  time 123456
 
 | 字段 | 单位 | 说明 |
 | --- | --- | --- |
-| `A[mg]` | mg | 三轴加速度，1000 mg 约等于 1 g |
-| `G[mdps]` | mdps | 三轴角速度，1000 mdps 等于 1 °/s |
+| `A[mg]` | mg | 启动坐标系中的三轴加速度，静止时约为 0、0、1000 mg |
+| `G[mdps]` | mdps | 启动坐标系中的三轴角速度，1000 mdps 等于 1 °/s |
 | `T[mC]` | m°C | 芯片内部温度 |
 | `time` | 39 µs / LSB | BMI160 的 24 位传感器时间计数 |
 
@@ -145,6 +148,8 @@ if (status == BMI160_OK)
 ```
 
 原始三轴数据为有符号 16 位整数。`bmi160_scale_sample()` 根据当前量程换算为 mg 和 mdps，不依赖浮点格式化。
+
+`bmi160_scale_sample()` 保留 BMI160 原生坐标。主程序在输出前使用开机建立的旋转矩阵，同时旋转加速度和角速度。重力只能确定俯仰与横滚；绕重力方向的航向采用 BMI160 原生 X 轴在水平面上的投影作为基准。原生 X 轴接近竖直时改用原生 Y 轴。
 
 温度单独读取：
 
@@ -332,11 +337,11 @@ status = bmi160_run_self_test(&bmi160, &result);
 
 自检期间应保持模块静止，避免外部冲击。
 
-## 快速偏移校准
+## 启动校准与 FOC
 
-FOC 需要模块静止并处于已知朝向。例如 X、Y 轴为 0 g，Z 轴朝上为 +1 g：
+主程序开机时先检测连续稳定状态，再使用任意静止姿态建立软件坐标系，并用后续 50 组平均角速度校准三轴陀螺仪软件偏置。启动流程不会改写 BMI160 的加速度计偏移寄存器。
 
-主程序先从平均加速度自动识别 ±X、±Y、±Z 六种重力方向，再校准加速度计与陀螺仪。以下接口可在已知方向的其他流程中调用：
+BMI160 的加速度计 FOC 仍可用于已知朝向的专门校准。例如 X、Y 轴为 0 g，Z 轴朝上为 +1 g：
 
 ```c
 bmi160_foc_config_t foc = {
@@ -352,7 +357,7 @@ bmi160_offsets_t offsets;
 status = bmi160_run_foc(&bmi160, &foc, &offsets);
 ```
 
-`bmi160_start_foc()` 与 `bmi160_foc_ready()` 可用于非阻塞轮询，主程序借此在 FOC 期间更新 LED。`bmi160_run_foc()` 最多等待 250 ms，并在 `STATUS.foc_rdy` 置位后读取偏移寄存器。偏移值也可以通过 `bmi160_get_offsets()` 和 `bmi160_set_offsets()` 读取或写入。
+`bmi160_start_foc()` 与 `bmi160_foc_ready()` 可用于非阻塞轮询。`bmi160_run_foc()` 最多等待 250 ms，并在 `STATUS.foc_rdy` 置位后读取偏移寄存器。偏移值也可以通过 `bmi160_get_offsets()` 和 `bmi160_set_offsets()` 读取或写入。
 
 这些偏移在上电复位或软件复位后消失。工程没有自动写入 BMI160 NVM。
 
@@ -426,7 +431,7 @@ project/MDK(V5)/Objects/BMI160.hex
 - 上电读取到 CHIP_ID 0xD1。
 - `PMU_STATUS` 显示加速度计和陀螺仪均为 Normal。
 - PC13 在开机校准期间闪烁，并在校准成功后保持点亮。
-- 静止平放时，某一加速度轴约为 ±1000 mg，其余两轴接近 0 mg。
+- 任意静止姿态启动后，输出加速度约为 X=0、Y=0、Z=1000 mg。
 - 静止时角速度接近 0 mdps，转动模块时对应轴连续变化。
 - 芯片温度输出处于合理范围。
 - FIFO、中断、自检与 FOC 分别按接线和测试姿态验证。

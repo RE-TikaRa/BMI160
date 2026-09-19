@@ -9,8 +9,11 @@ if exist "project\MDK(V5)\Listings" (
 if exist "project\MDK(V5)\Objects" (
     rd /Q /S "project\MDK(V5)\Objects" || set "exit_code=1"
 )
-if exist "project\MDK(V5)\Project.uvgui.*" (
-    del /Q "project\MDK(V5)\Project.uvgui.*" || set "exit_code=1"
+if exist "project\MDK(V5)\BMI160.uvgui.Tika" (
+    del /Q "project\MDK(V5)\BMI160.uvgui.Tika" || set "exit_code=1"
+)
+if exist "project\MDK(V5)\BMI160.uvguix.Tika" (
+    del /Q "project\MDK(V5)\BMI160.uvguix.Tika" || set "exit_code=1"
 )
 
 popd

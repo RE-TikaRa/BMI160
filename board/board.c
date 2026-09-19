@@ -18,12 +18,27 @@ void board_led_init(void)
 	gpio.GPIO_Mode = GPIO_Mode_Out_PP;
 	gpio.GPIO_Speed = GPIO_Speed_50MHz;
 	GPIO_Init(BOARD_LED_GPIO, &gpio);
-	board_led_write(Bit_RESET);
+	board_led_off();
 }
 
 void board_led_write(BitAction state)
 {
 	GPIO_WriteBit(BOARD_LED_GPIO, BOARD_LED_PIN, state);
+}
+
+void board_led_on(void)
+{
+	board_led_write(BOARD_LED_ON_STATE);
+}
+
+void board_led_off(void)
+{
+	board_led_write(BOARD_LED_OFF_STATE);
+}
+
+void board_led_toggle(void)
+{
+	BOARD_LED_GPIO->ODR ^= BOARD_LED_PIN;
 }
 
 void delay_us(uint32_t us)

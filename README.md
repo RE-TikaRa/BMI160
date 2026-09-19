@@ -1,6 +1,6 @@
 # STM32F103C8T6 + BMI160 六轴例程
 
-这是一个基于 STM32F10x Standard Peripheral Library 的 BMI160 完整示例工程。主程序通过 I2C1 初始化 BMI160，读取加速度、角速度、温度与传感器时间，并通过 USART1 输出换算后的数据。
+这是一个基于 STM32F10x Standard Peripheral Library 的 BMI160 完整示例工程。主程序通过 I2C1 初始化 BMI160，读取加速度、角速度、温度与传感器时间，并通过 USART1 输出换算后的数据。项目空白模板来自[嘉立创](https://wiki.lckfb.com/zh-hans/dkx-stm32f103c8t6/)。
 
 驱动还提供电源模式、FIFO、数据就绪与运动中断、步数、自检、快速偏移校准和手动偏移接口。工程面向 Keil MDK V5 与 ARM Compiler 5。
 
@@ -445,6 +445,12 @@ project/MDK(V5)/Objects/BMI160.hex
 - [STM32F10x Standard Peripheral Library](https://www.st.com/)
 
 ## 许可
+
+项目许可证为 Apache 2.0
+
+[Apache License 2.0](LICENSE)
+
+
 
 CMSIS 与 STM32F10x Standard Peripheral Library 保留各自的许可文件：
 
